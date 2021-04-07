@@ -1,138 +1,50 @@
 #Author: Saige Kelmelis
-#Last modified: 10/15/2020
+#Last modified: 4/7/2021
 
 #Description
 #R script for analyzing pooled data from Sharon DeWitte and Saige Kelmelis's Danish data.
 #Basic Kaplan-Meier and Cox regression analyses, including demographic distributions. 
 
-# Load libraries
+# Load appropriate libraries
 library(ggplot2)
-library(devtools)
-library(ranger)
-library(dplyr)
-library(ggfortify)
 library(survival)
-library(ggpubr)
-library(lme4)
 library(survminer)
-library(forestmodel)
-library(kSamples)
-library(yada)
 
 ##Import Data. Be sure that it is in a .csv file and that it is formatted correctly. 
 
-setwd("C:/Users/Saige.Kelmelis/OneDrive - The University of South Dakota/Black Death Denmark")
+setwd()
 
 rm(list=ls())
 
-### Define some functions used below
-# Plot a histogram with associated Siler fit and save to .pdf file
-makeHist <- function(x,label,ageBins,xplot,writePlot=F,silerFit=F) {
-  if(writePlot) {
-    pdf(paste0('age_at_death_hist_',label,'.pdf'))
-  }
-  hist(x,ageBins,freq=F,xlab='Age [years]',ylab='Density',main=paste0(label,' [N=',as.character(length(x)),']'))
-  if(silerFit) {
-    fit <- fitSilerMaxLik(x)
-    lines(xplot,dsiler(xplot,fit$a),lwd=3)
-  }
-  if(writePlot) {
-    dev.off()
-  }
-}
-
-# Read data and set up factors
-D <- read.csv ("Danish_data.csv")
+# Read data
+D <- read.csv 
 names(D)
 nrow(D)
 
-
-#Set Sex as a factor
-D$Sex<-factor(D$Sex, labels=c("male", "female", "nonadult"))
-table(D$Sex)
-
-#Set site as a factor
-table(D$Site)
-D$Site<-factor(D$Site, labels=c("Nordby", "Sejet", "Ole Wormsgade","Om Kloster", "St Albani", "St Mikkel"))  #convert to factor and assign labels
-table(D$Site)
-
-#Set Urban as a factor
-D$Urban <-D$urban...0...rural..1...urban.
-table(D$Urban)
-D$Urban<-factor(D$Urban, labels=c("Rural", "Urban"))
-
-#Set Time Period as a factor
-D$Period<-D$time.period..0...pre.Black.Death..1...post.Black.Death..2...overlapped.with.Black.Death.
-table(D$Period)
-D$Period<-factor(D$Period, labels=c("pre-Black Death", "post-Black Death", "Epidemic Period"))
-
 #Rename and recode variables for ease
-D$Age<- D$Age..cor.
-D$Age <- as.numeric(as.character(D$Age))
-sapply(D, class)
 
-# Create histograms with associated Siler fits and save plots to file
-ageBins <- seq(-1,100,by=5)
-xplot <- seq(-1,100,by=.1)
-pdf('histograms_by_sex_and_site.pdf',width=10,height=12)
-par(mfrow=c(5,2))
-makeHist(D$Age,'All',ageBins,xplot,silerFit=T)
-makeHist(D$Age,'All',ageBins,xplot,silerFit=T)
+##Kaplan-Meier survival and Cox regression
 
-#makeHist(D$Age[D$Sex == '1'],'Female',ageBins,xplot)
-#makeHist(D$Age[D$Site == 'Nordby'],'Nordby',ageBins,xplot)
-#makeHist(data$Final.Age[data$Sex == 'male'],'Male',ageBins,xplot)
-#makeHist(data$Final.Age[data$Site == 'Sejet'],'Sejet',ageBins,xplot)
-#makeHist(data$Final.Age[data$Sex == 'nonadult'],'Non-Adult',ageBins,xplot)
-#makeHist(data$Final.Age[data$Site == 'Ole Wormsgade'],'Ole Wormsgade',ageBins,xplot)
-#plot.new()
-#makeHist(data$Final.Age[data$Site == 'Om Kloster'],'Om Kloster',ageBins,xplot)
-#dev.off()
-
-#Basic histogram of all ages -- worth revisiting if need be with better graphs
-hist(D$Age, main="Age distribution across all sites", xlab="Age in years", xlim=c(0,100), col="grey", freq=FALSE)
-
-age<- D$Age
-period<- D$Period
-
-p <- ggplot(D, aes(x=age, fill=period, color=period))+ geom_histogram(position="identity", alpha=0.5)
-p + scale_color_grey()+scale_fill_grey() +
-  theme_classic()
-
-
-#Kaplan-Meier survival and Cox regression
-##Run some cursory site analyses to explore the distributions
-table(D$Site)
+#Set up first Kaplan-Meier test that we will call "km' to examine survivorship of individuals across specific site samples and age-at-death
 km <- with(D, Surv(D$Age, D$Event))
 km_fit <- survfit(Surv(D$Age, D$Event) ~D$Site, data = D)
 km_fit
-summary(km_fit)$table
+summary(km_fit)$table #Table output of analyses
+
+#Produce a basic plot in R
 survdiff <- survdiff(Surv(D$Age, D$Event) ~D$Site, data = D)
 km_plot <- autoplot(km_fit, main ="Site Survival Functions", xlab="Age at Death", ylab="Survival")
 km_plot
+
+#Cox Regression
 res.cox <- coxph(formula=Surv(D$Age, D$Event) ~D$Site, data=D)
 summary(res.cox)
 
+#Kaplan-Meier plot using ggsurvplot package.
+#First line produces with the 95% confidence intervals, second does not. Both produce the p-value estimate
 
-ggsurvplot(km_fit, data=D, xlab="Age", ylab="Survival", legend="right", legend.labs = c("Nordby","Ole Wormsgade", "Om Kloster", "Sejet", "St Albani", "St Mikkel"), conf.int=TRUE, pval=TRUE)
-ggsurvplot(km_fit, data=D, xlab="Age", ylab="Survival", legend="right",legend.labs = c("Nordby","Ole Wormsgade", "Om Kloster", "Sejet", "St Albani", "St Mikkel"), pval=TRUE)
+ggsurvplot(km_fit, data=D, xlab="Age", ylab="Survival", legend="right", legend.labs = c("Site 1","Site 2", "Site 3"), conf.int=TRUE, pval=TRUE)
+ggsurvplot(km_fit, data=D, xlab="Age", ylab="Survival", legend="right",legend.labs = c("Site 1","Site 2", "Site 3"), pval=TRUE)
 
-#Kruskal wallis test for diff in dist
-kruskal.test(D$Age ~ D$Site, data=D)
-
-#First, run with all data pooled (period and sex) with urban vs rural as co-variates 
-#Second, urban vs rural differences based on sex
-table(D$Urban)
-km1 <- with(D, Surv(D$Age, D$Event))
-km1_fit <- survfit(Surv(D$Age, D$Event) ~D$Urban, data = D)
-km1_fit
-summary(km1_fit)$table
-survdiff <- survdiff(Surv(D$Age, D$Event) ~D$Urban, data = D)
-km1_plot <- autoplot(km1_fit, main ="Urban and Rural Survival Functions", xlab="Age at Death", ylab="Survival")
-km1_plot
-res.cox <- coxph(formula=Surv(D$Age, D$Event) ~D$Urban, data=D)
-summary(res.cox)
-
-
-ggsurvplot(km1_fit, data=D, xlab="Age", ylab="Survival", legend="right", legend.labs = c("Rural", "Urban"), conf.int=TRUE, pval=TRUE)
-ggsurvplot(km1_fit, data=D, xlab="Age", ylab="Survival", legend="right", legend.labs = c("Rural", "Urban"), pval=TRUE)
+#Kruskal wallis test for differences in distributions
+kruskal.test(D$Factor1 ~ D$Factor2, data=D)
